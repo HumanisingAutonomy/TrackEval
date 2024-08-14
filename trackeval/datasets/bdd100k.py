@@ -83,14 +83,19 @@ class BDD100K(_BaseDataset):
         else:
             raise TrackEvalException('List of tracker files and tracker display names do not match.')
 
+        seq_to_keep = set()
         for tracker in self.tracker_list:
             for seq in self.seq_list:
                 curr_file = os.path.join(self.tracker_fol, tracker, self.tracker_sub_fol, seq + '.json')
                 if not os.path.isfile(curr_file):
                     print('Tracker file not found: ' + curr_file)
-                    raise TrackEvalException(
-                        'Tracker file not found: ' + tracker + '/' + self.tracker_sub_fol + '/' + os.path.basename(
-                            curr_file))
+                    # raise TrackEvalException(
+                    #     'Tracker file not found: ' + tracker + '/' + self.tracker_sub_fol + '/' + os.path.basename(
+                    #         curr_file))
+                    continue
+                seq_to_keep.add(seq)
+        
+        self.seq_list = list(seq_to_keep)
 
     def get_display_name(self, tracker):
         return self.tracker_to_disp[tracker]
@@ -116,7 +121,7 @@ class BDD100K(_BaseDataset):
             data = json.load(f)
 
         # sort data by frame index
-        data = sorted(data, key=lambda x: x['index'])
+        data = sorted(data, key=lambda x: x['frameIndex'])
 
         # check sequence length
         if is_gt:
@@ -139,7 +144,7 @@ class BDD100K(_BaseDataset):
             for i in range(len(data[t]['labels'])):
                 ann = data[t]['labels'][i]
                 if is_gt and (ann['category'] in self.distractor_classes or 'attributes' in ann.keys()
-                              and ann['attributes']['Crowd']):
+                              and ann['attributes']['crowd']):
                     ig_ids.append(i)
                 else:
                     keep_ids.append(i)
@@ -226,12 +231,12 @@ class BDD100K(_BaseDataset):
 
             # Only extract relevant dets for this class for preproc and eval (cls)
             gt_class_mask = np.atleast_1d(raw_data['gt_classes'][t] == cls_id)
-            gt_class_mask = gt_class_mask.astype(np.bool)
+            gt_class_mask = gt_class_mask.astype(bool)
             gt_ids = raw_data['gt_ids'][t][gt_class_mask]
             gt_dets = raw_data['gt_dets'][t][gt_class_mask]
 
             tracker_class_mask = np.atleast_1d(raw_data['tracker_classes'][t] == cls_id)
-            tracker_class_mask = tracker_class_mask.astype(np.bool)
+            tracker_class_mask = tracker_class_mask.astype(bool)
             tracker_ids = raw_data['tracker_ids'][t][tracker_class_mask]
             tracker_dets = raw_data['tracker_dets'][t][tracker_class_mask]
             similarity_scores = raw_data['similarity_scores'][t][gt_class_mask, :][:, tracker_class_mask]
@@ -276,14 +281,14 @@ class BDD100K(_BaseDataset):
             gt_id_map[unique_gt_ids] = np.arange(len(unique_gt_ids))
             for t in range(raw_data['num_timesteps']):
                 if len(data['gt_ids'][t]) > 0:
-                    data['gt_ids'][t] = gt_id_map[data['gt_ids'][t]].astype(np.int)
+                    data['gt_ids'][t] = gt_id_map[data['gt_ids'][t]].astype(np.int32)
         if len(unique_tracker_ids) > 0:
             unique_tracker_ids = np.unique(unique_tracker_ids)
             tracker_id_map = np.nan * np.ones((np.max(unique_tracker_ids) + 1))
             tracker_id_map[unique_tracker_ids] = np.arange(len(unique_tracker_ids))
             for t in range(raw_data['num_timesteps']):
                 if len(data['tracker_ids'][t]) > 0:
-                    data['tracker_ids'][t] = tracker_id_map[data['tracker_ids'][t]].astype(np.int)
+                    data['tracker_ids'][t] = tracker_id_map[data['tracker_ids'][t]].astype(np.int32)
 
         # Record overview statistics.
         data['num_tracker_dets'] = num_tracker_dets
